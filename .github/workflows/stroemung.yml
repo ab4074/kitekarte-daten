@@ -1,0 +1,39 @@
+# Kitekarte: Gezeitenströmung aus dem BSH-Modell (HBM, CC BY 4.0) einmal im Monat neu berechnen
+name: Stroemung
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Tage BSH-Daten (29 = alle Gezeitenanteile)'
+        default: '29'
+      inspect:
+        description: '1 = nur Aufbau der ersten Datei anzeigen'
+        default: '0'
+  schedule:
+    - cron: '17 4 2 * *'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install numpy netCDF4
+      - name: BSH-Daten laden und auswerten
+        env:
+          DAYS: ${{ github.event.inputs.days || '29' }}
+          INSPECT: ${{ github.event.inputs.inspect || '0' }}
+          OUT: data
+        run: python hbm_tides.py
+      - name: Ergebnis speichern
+        if: ${{ github.event.inputs.inspect != '1' }}
+        run: |
+          git config user.name "kitekarte-bot"
+          git config user.email "kitekarte-bot@users.noreply.github.com"
+          git add data
+          git commit -m "Strömung aktualisiert" || echo "keine Änderung"
+          git push
