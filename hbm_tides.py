@@ -7,7 +7,8 @@ selbst ausrechnen, auch offline.
 
 Umgebungsvariablen: DAYS (Standard 29), INSPECT=1 (nur Aufbau der ersten Datei ausgeben), OUT (Ausgabeordner).
 """
-import os, sys, io, json, math, time, datetime as dt, urllib.request, urllib.error, tempfile
+import os, sys, io, json, math, time, warnings, datetime as dt, urllib.request, urllib.error, tempfile
+warnings.filterwarnings('ignore', category=RuntimeWarning)
 import numpy as np
 import netCDF4 as nc
 
@@ -113,13 +114,27 @@ def main():
         di = u.dimensions.index
         if dn: sl[di(dn)] = 0
         sl[di(latn)] = slice(grid['j0'], grid['j1']); sl[di(lonn)] = slice(grid['i0'], grid['i1'])
-        U = np.ma.filled(np.ma.asarray(u[tuple(sl)]).astype(np.float32), np.nan)
+        # Arakawa-C-Gitter: u liegt am Ost-, v am Südrand der Zelle -> auf die Zellmitte mitteln
+        cpu = getattr(u, 'cellposition', ''); cpv = getattr(v, 'cellposition', '')
+        if cpu == 'east' and grid['i0'] > 0:
+            sl[di(lonn)] = slice(grid['i0'] - 1, grid['i1'])
+            Ue = np.ma.filled(np.ma.asarray(u[tuple(sl)]).astype(np.float32), np.nan)
+            U = np.nanmean(np.stack([Ue[..., 1:], Ue[..., :-1]]), 0)
+        else:
+            U = np.ma.filled(np.ma.asarray(u[tuple(sl)]).astype(np.float32), np.nan)
         # v aufs u-Gitter bringen (Arakawa-C: v liegt versetzt)
         tn2, dn2, lav, lov = coords(ds, v); sl2 = [slice(None)] * v.ndim
         if dn2: sl2[v.dimensions.index(dn2)] = 0
         if grid['same']:
-            sl2[v.dimensions.index(lav)] = slice(grid['j0'], grid['j1']); sl2[v.dimensions.index(lov)] = slice(grid['i0'], grid['i1'])
-            V = np.ma.filled(np.ma.asarray(v[tuple(sl2)]).astype(np.float32), np.nan)
+            sl2[v.dimensions.index(lov)] = slice(grid['i0'], grid['i1'])
+            north_up = grid['lat'][-1] > grid['lat'][0]
+            if cpv == 'south' and north_up and grid['j1'] < len(grid['la_v']):
+                sl2[v.dimensions.index(lav)] = slice(grid['j0'], grid['j1'] + 1)
+                Vs = np.ma.filled(np.ma.asarray(v[tuple(sl2)]).astype(np.float32), np.nan)
+                V = np.nanmean(np.stack([Vs[:, :-1], Vs[:, 1:]]), 0)
+            else:
+                sl2[v.dimensions.index(lav)] = slice(grid['j0'], grid['j1'])
+                V = np.ma.filled(np.ma.asarray(v[tuple(sl2)]).astype(np.float32), np.nan)
         else:
             V = regrid(np.ma.filled(np.ma.asarray(v[tuple(sl2)]).astype(np.float32), np.nan), grid['la_v'], grid['lo_v'], grid['lat'], grid['lon'])
         ds.close(); os.remove(p)
