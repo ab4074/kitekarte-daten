@@ -1,0 +1,35 @@
+name: Android-App bauen
+on:
+  workflow_dispatch:
+  push:
+    paths: ['android/**', '.github/workflows/android.yml']
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+        with: { packages: 'platforms;android-36 build-tools;36.0.0' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.13' }
+      - name: Bauen (unsigniert, Signatur erfolgt lokal)
+        run: |
+          mkdir -p build && cd build
+          unzip -q ../android/kitekarte-android.zip
+          gradle --no-daemon assembleRelease bundleRelease
+      - name: Ergebnis in Branch android-build ablegen
+        run: |
+          mkdir -p /tmp/out
+          cp build/app/build/outputs/apk/release/*.apk /tmp/out/
+          cp build/app/build/outputs/bundle/release/*.aab /tmp/out/
+          ls -la /tmp/out > /tmp/out/build-info.txt
+          echo "commit ${GITHUB_SHA} $(date -u)" >> /tmp/out/build-info.txt
+          cd /tmp/out
+          git init -q -b android-build
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add -A && git commit -qm "Android-Build ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" android-build
