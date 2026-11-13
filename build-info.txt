@@ -1,0 +1,7 @@
+total 8916
+drwxr-xr-x  2 runner runner    4096 Nov 13 11:55 .
+drwxrwxrwt 14 root   root      4096 Nov 13 11:55 ..
+-rw-r--r--  1 runner runner 5269772 Nov 13 11:55 app-release-unsigned.apk
+-rw-r--r--  1 runner runner 3846376 Nov 13 11:55 app-release.aab
+-rw-r--r--  1 runner runner       0 Nov 13 11:55 build-info.txt
+commit 5cec4dffe1ba18e743580194f92c1eb50d1c7877 Fri Nov 13 11:55:12 UTC 2026
